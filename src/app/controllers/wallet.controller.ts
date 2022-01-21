@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import WalletsService from '../services/wallet.service';
 import CreateWalletDto from '../dto/wallet/createWalletDto';
+import OperationDto from '../dto/wallet/OperationDto';
 
 @Controller('wallets')
 export default class WalletsController {
@@ -24,5 +25,12 @@ export default class WalletsController {
   @Get()
   async getAll() {
     return await this.walletService.getAll();
+  }
+  @Put(':adress')
+  async withdrawOrDeposit(
+    @Param('adress') adress: string,
+    @Body() operation: OperationDto,
+  ) {
+    return await this.walletService.withdrawOrDeposit(adress, operation);
   }
 }
