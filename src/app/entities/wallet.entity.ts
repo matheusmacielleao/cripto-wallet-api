@@ -4,34 +4,39 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import Asset from './asset.entity';
 
 @Entity('wallet')
 export default class Wallet {
   @PrimaryGeneratedColumn('uuid')
-  address!: string;
+  address: string;
 
   @Column({ nullable: false })
-  name!: string;
+  name: string;
 
   @Column({ nullable: false, unique: true })
-  cpf!: string;
+  cpf: string;
 
   @Column({ type: 'date', nullable: false })
-  birthdate!: Date;
+  birthdate: Date;
+
+  @OneToMany(() => Asset, (asset: Asset) => asset.wallet)
+  public assets: Asset[];
 
   @Exclude()
   @CreateDateColumn()
-  createdAt!: Date;
+  createdAt: Date;
 
   @Exclude()
   @UpdateDateColumn({
     default: () => 'CURRENT_TIMESTAMP(6)',
     onUpdate: 'CURRENT_TIMESTAMP(6)',
   })
-  updatedAt!: Date;
+  updatedAt: Date;
   generatedId() {
     if (this.address) {
       return;

@@ -3,7 +3,6 @@ import {
   IsString,
   IsNotEmpty,
   MinLength,
-  IsDate,
   isNotEmpty,
   IsDateString,
 } from 'class-validator';
