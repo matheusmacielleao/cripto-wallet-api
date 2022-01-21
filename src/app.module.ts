@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { WalletsModule } from './app/modules/wallet.module';
 import * as Joi from '@hapi/joi';
 import { DatabaseModule } from './app/modules/database.module';
+import { HttpModule } from '@nestjs/axios';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { DatabaseModule } from './app/modules/database.module';
       }),
     }),
     DatabaseModule,
+    HttpModule,
   ],
   controllers: [AppController],
   providers: [AppService],
