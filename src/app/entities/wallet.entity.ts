@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinTable,
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
@@ -25,6 +26,7 @@ export default class Wallet {
   birthdate: Date;
 
   @OneToMany(() => Asset, (asset: Asset) => asset.wallet)
+  @JoinTable()
   public assets: Asset[];
 
   @Exclude()

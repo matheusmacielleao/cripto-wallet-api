@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
@@ -16,13 +17,15 @@ export default class Asset {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ nullable: false, default: 0 })
+  @Column({ default: 0 })
   ammount: number;
 
   @ManyToOne(() => Wallet, (wallet: Wallet) => wallet.assets)
+  @JoinColumn({ name: 'wallet', referencedColumnName: 'address' })
   public wallet: Wallet;
 
   @ManyToOne(() => Coin, (coin: Coin) => coin.assets)
+  @JoinColumn({ name: 'coin', referencedColumnName: 'code' })
   public coin: Coin;
 
   generatedId() {
