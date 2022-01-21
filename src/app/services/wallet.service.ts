@@ -5,11 +5,15 @@ import { InjectRepository } from '@nestjs/typeorm';
 import Wallet from '../entities/wallet.entity';
 import { Repository } from 'typeorm';
 import { cpfValidator } from '../utils/cpfValidator';
+import Coin from '../entities/coin.entity';
+import Asset from '../entities/asset.entity';
 
 @Injectable()
 export default class WalletsService {
   constructor(
     @InjectRepository(Wallet) private walletRepository: Repository<Wallet>,
+    @InjectRepository(Coin) private coinRepository: Repository<Coin>,
+    @InjectRepository(Asset) private assetRepository: Repository<Asset>,
   ) {}
 
   async create(payload: CreateWalletDto) {

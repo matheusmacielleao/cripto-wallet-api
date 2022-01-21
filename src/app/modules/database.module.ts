@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import Wallet from '../entities/wallet.entity';
+import Coin from '../entities/coin.entity';
+import Asset from '../entities/asset.entity';
 
 @Module({
   imports: [
@@ -15,7 +17,7 @@ import Wallet from '../entities/wallet.entity';
         username: configService.get('POSTGRES_USER'),
         password: configService.get('POSTGRES_PASSWORD'),
         database: configService.get('POSTGRES_DB'),
-        entities: [Wallet],
+        entities: [Wallet, Coin, Asset],
         synchronize: true,
       }),
     }),
