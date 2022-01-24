@@ -17,7 +17,14 @@ export default class Asset {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ default: 0 })
+  @Column({
+    default: 0.0,
+    type: 'decimal',
+    transformer: {
+      from: (value: string) => parseFloat(value),
+      to: (value: number) => value.toString(),
+    },
+  })
   ammount: number;
 
   @ManyToOne(() => Wallet, (wallet: Wallet) => wallet.assets)
