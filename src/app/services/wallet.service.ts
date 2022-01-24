@@ -53,19 +53,42 @@ export default class WalletsService {
   async withdrawOrDeposit(id: string, payload: OperationDto): Promise<any> {
     const wallet = await this.walletRepository.findOne(id);
     let conversion = await axios
-      .get(`https://economia.awesomeapi.com.br/json/last/${payload.quoteTo}`)
-      .then((response) => response.data);
-    conversion = conversion[payload.quoteTo + payload.currentCoin];
+      .get(
+        `https://economia.awesomeapi.com.br/json/last/${
+          payload.currentCoin + '-' + payload.quoteTo
+        }`,
+      )
+      .then((response) => response.data)
+      .catch((error) => {
+        console.log(error.response.data);
+      });
 
-    const newCoin = this.coinRepository.create({
-      code: conversion.code,
-      fullname: conversion.name.split('/')[0],
-    });
-    await this.coinRepository.save(newCoin);
+    if (conversion)
+      conversion = conversion[payload.currentCoin + payload.quoteTo];
 
-    const newAsset = this.assetRepository.create({ wallet, coin: newCoin });
-    this.assetRepository.save(newAsset);
+    if (!conversion) {
+      if (!(await this.coinRepository.findOne({ code: payload.currentCoin }))) {
+        throw new HttpException('invalid coin', HttpStatus.BAD_REQUEST);
+      }
+      conversion = { codein: payload.currentCoin, high: 1 };
+    }
+
+    let coin = await this.coinRepository.findOne({ code: conversion.codein });
+    if (!coin) {
+      coin = this.coinRepository.create({
+        code: conversion.codein,
+        fullname: conversion.name.split('/')[0],
+      });
+      await this.coinRepository.save(coin);
+    }
+
+    let asset = await this.assetRepository.findOne({ coin: coin });
+    if (!asset) {
+      asset = this.assetRepository.create({ wallet, coin: coin, ammount: 0 });
+    }
+    asset.ammount = asset.ammount + conversion.high * payload.value;
+    this.assetRepository.save(asset);
+
     return conversion;
-    //}
   }
 }
