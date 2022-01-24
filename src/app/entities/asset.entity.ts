@@ -5,11 +5,14 @@ import {
   CreateDateColumn,
   Entity,
   JoinColumn,
+  JoinTable,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import Coin from './coin.entity';
+import Transaction from './transaction.entity';
 import Wallet from './wallet.entity';
 
 @Entity('asset')
@@ -34,6 +37,10 @@ export default class Asset {
   @ManyToOne(() => Coin, (coin: Coin) => coin.assets)
   @JoinColumn({ name: 'coin', referencedColumnName: 'code' })
   public coin: Coin;
+
+  @OneToMany(() => Transaction, (transaction: Transaction) => transaction.asset)
+  @JoinTable()
+  public transactions: Transaction[];
 
   generatedId() {
     if (this.id) {

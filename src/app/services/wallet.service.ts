@@ -10,6 +10,9 @@ import Asset from '../entities/asset.entity';
 import OperationDto from '../dto/wallet/OperationDto';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom, lastValueFrom } from 'rxjs';
+import Transaction from '../entities/transaction.entity';
+import Transfer from '../entities/transfer.entity';
+import GetWalletDto from '../dto/wallet/getWalletDto';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const axios = require('axios').default;
 
@@ -19,6 +22,10 @@ export default class WalletsService {
     @InjectRepository(Wallet) private walletRepository: Repository<Wallet>,
     @InjectRepository(Coin) private coinRepository: Repository<Coin>,
     @InjectRepository(Asset) private assetRepository: Repository<Asset>,
+    @InjectRepository(Transaction)
+    private transactionRepository: Repository<Transaction>,
+    @InjectRepository(Transfer)
+    private transferRepository: Repository<Transfer>,
     private httpService: HttpService,
   ) {}
 
@@ -42,12 +49,11 @@ export default class WalletsService {
     return newWallet;
   }
 
-  async getAll() {
-    return await this.walletRepository
-      .createQueryBuilder('wallet')
-      .leftJoinAndSelect('wallet.assets', 'asset')
-      .leftJoinAndSelect('asset.coin', 'coin')
-      .getMany();
+  async getAll(payload: any): Promise<Wallet[]> {
+    return await this.walletRepository.find({
+      where: payload,
+      relations: ['assets', 'assets.coin', 'assets.transactions'],
+    });
   }
 
   async withdrawOrDeposit(id: string, payload: OperationDto): Promise<any> {
@@ -56,15 +62,12 @@ export default class WalletsService {
       .get(
         `https://economia.awesomeapi.com.br/json/last/${
           payload.currentCoin + '-' + payload.quoteTo
-        }`,
+        },${payload.quoteTo + '-BRL'}`,
       )
       .then((response) => response.data)
       .catch((error) => {
         console.log(error.response.data);
       });
-
-    if (conversion)
-      conversion = conversion[payload.currentCoin + payload.quoteTo];
 
     if (!conversion) {
       if (!(await this.coinRepository.findOne({ code: payload.currentCoin }))) {
@@ -72,22 +75,41 @@ export default class WalletsService {
       }
       conversion = { codein: payload.currentCoin, high: 1 };
     }
+    const currentCotation = conversion[payload.quoteTo + 'BRL'].high;
+
+    if (conversion)
+      conversion = conversion[payload.currentCoin + payload.quoteTo];
 
     let coin = await this.coinRepository.findOne({ code: conversion.codein });
     if (!coin) {
       coin = this.coinRepository.create({
         code: conversion.codein,
-        fullname: conversion.name.split('/')[0],
+        fullname: conversion.name.split('/')[1],
       });
       await this.coinRepository.save(coin);
     }
 
     let asset = await this.assetRepository.findOne({ coin: coin });
     if (!asset) {
-      asset = this.assetRepository.create({ wallet, coin: coin, ammount: 0 });
+      asset = await this.assetRepository.create({
+        wallet,
+        coin: coin,
+        ammount: 0,
+      });
     }
     asset.ammount = asset.ammount + conversion.high * payload.value;
-    this.assetRepository.save(asset);
+    if (asset.ammount < 0)
+      throw new HttpException('inssuficient founds', HttpStatus.BAD_REQUEST);
+    await this.assetRepository.save(asset);
+
+    const transaction = await this.transactionRepository.create({
+      wallet,
+      asset,
+      currentCotation: currentCotation + 0.0,
+      value: asset.ammount,
+    });
+
+    await this.transactionRepository.save(transaction);
 
     return conversion;
   }

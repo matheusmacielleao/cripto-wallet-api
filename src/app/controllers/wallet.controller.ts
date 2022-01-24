@@ -7,11 +7,13 @@ import {
   Param,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import WalletsService from '../services/wallet.service';
 import CreateWalletDto from '../dto/wallet/createWalletDto';
 import OperationDto from '../dto/wallet/OperationDto';
-
+import { paginateSerialize } from '../serializer/walletSerializer';
+import GetWalletDto from '../dto/wallet/getWalletDto';
 @Controller('wallets')
 export default class WalletsController {
   constructor(private readonly walletService: WalletsService) {}
@@ -23,8 +25,9 @@ export default class WalletsController {
   }
 
   @Get()
-  async getAll() {
-    return await this.walletService.getAll();
+  async getAll(@Query() payload: any) {
+    const wallets = await this.walletService.getAll(payload);
+    return paginateSerialize(wallets);
   }
   @Put(':adress')
   async withdrawOrDeposit(
