@@ -3,7 +3,7 @@ import Asset from './asset.entity';
 import Transaction from './transaction.entity';
 import Wallet from './wallet.entity';
 
-@ChildEntity()
+@Entity('transfer')
 export default class Transfer extends Transaction {
   @ManyToOne(() => Wallet, (wallet: Wallet) => wallet.assets)
   @JoinColumn({ name: 'receiverWallet', referencedColumnName: 'address' })

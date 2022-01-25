@@ -36,4 +36,11 @@ export default class WalletsController {
   ) {
     return await this.walletService.withdrawOrDeposit(adress, operation);
   }
+  @Post(':adress')
+  async transference(
+    @Param('adress') adress: string,
+    @Body() operation: OperationDto,
+  ) {
+    return await this.walletService.transference(adress, operation);
+  }
 }
