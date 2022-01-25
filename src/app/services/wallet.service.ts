@@ -68,8 +68,9 @@ export default class WalletsService {
       .catch((error) => {
         console.log(error.response.data);
       });
-    if (!conversion) {
-      conversion = conversion = await axios
+
+    if (!conversion && payload.quoteTo === payload.currentCoin) {
+      conversion = await axios
         .get(
           `https://economia.awesomeapi.com.br/json/last/${
             payload.quoteTo + '-BRL'
@@ -80,10 +81,14 @@ export default class WalletsService {
           console.log(error.response.data);
         });
 
-      if (!conversion && !(payload.quoteTo === 'BRL')) {
+      if (
+        !conversion &&
+        payload.quoteTo === 'BRL' &&
+        payload.currentCoin === 'BRL'
+      ) {
         throw new HttpException('invalid coin', HttpStatus.BAD_REQUEST);
       } else {
-        if (payload.quoteTo === 'BRL') {
+        if (payload.quoteTo === 'BRL' && payload.currentCoin === 'BRL') {
           brlCotation = 1;
           conversion = {
             codein: 'BRL',
@@ -100,6 +105,22 @@ export default class WalletsService {
         }
       }
     } else {
+      if (!conversion) {
+        conversion = await axios
+          .get(
+            `https://economia.awesomeapi.com.br/json/last/${
+              payload.quoteTo + '-' + payload.currentCoin
+            },${payload.quoteTo + '-BRL'}`,
+          )
+          .then((response) => response.data)
+          .catch((error) => {
+            console.log(error.response.data);
+          });
+        brlCotation = conversion[payload.quoteTo + 'BRL'].high;
+        conversion = conversion[payload.quoteTo + payload.currentCoin];
+        conversion.high = 1 / conversion.high;
+        return { conversion, brlCotation };
+      }
       brlCotation = conversion[payload.quoteTo + 'BRL'].high;
       conversion = conversion[payload.currentCoin + payload.quoteTo];
     }
@@ -131,6 +152,7 @@ export default class WalletsService {
         ammount: 0,
       });
     }
+
     asset.ammount = asset.ammount + conversion.high * payload.value;
     if (asset.ammount < 0)
       throw new HttpException('inssuficient founds', HttpStatus.BAD_REQUEST);
@@ -146,5 +168,46 @@ export default class WalletsService {
     await this.transactionRepository.save(transaction);
 
     return conversion;
+  }
+  async transference(id: string, payload: OperationDto): Promise<any> {
+    const wallet = await this.walletRepository.findOne(id);
+    const receiverWallet = await this.walletRepository.findOne({
+      address: payload.receiverAddress,
+    });
+    //100 reais pra usd
+    const coin = await this.coinRepository.findOne(payload.currentCoin);
+    const quoteCoin = await this.coinRepository.findOne(payload.quoteTo);
+
+    const { conversion, brlCotation } = await this.getConversion(payload);
+
+    const senderAsset = await this.assetRepository.findOne({
+      coin,
+      wallet,
+    });
+
+    const receiverAsset = await this.assetRepository.findOne({
+      coin: quoteCoin,
+      wallet: receiverWallet,
+    });
+
+    senderAsset.ammount = senderAsset.ammount - payload.value;
+    this.assetRepository.save(senderAsset);
+    receiverAsset.ammount =
+      receiverAsset.ammount + payload.value * conversion.high;
+    this.assetRepository.save(receiverAsset);
+
+    const transfer = await this.transferRepository.create({
+      wallet,
+      asset: senderAsset,
+      receiverAsset: receiverAsset,
+      receiverWallet: receiverWallet,
+      currentCotation: brlCotation + 0.0,
+      value: -payload.value,
+      receivedValue: conversion.high * payload.value,
+    });
+
+    await this.transferRepository.save(transfer);
+
+    return '';
   }
 }
