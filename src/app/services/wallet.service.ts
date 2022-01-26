@@ -49,125 +49,102 @@ export default class WalletsService {
     return newWallet;
   }
 
-  async getAll(payload: any): Promise<Wallet[]> {
-    return await this.walletRepository.find({
-      where: payload,
-      relations: ['assets', 'assets.coin', 'assets.transactions'],
-    });
+  async getAll(payload: any): Promise<any> {
+    return this.walletRepository
+      .createQueryBuilder('wallet')
+      .leftJoinAndSelect('wallet.assets', 'asset')
+      .leftJoinAndSelect('asset.coin', 'coin')
+      .leftJoinAndSelect('asset.transactions', 'transaction')
+      .where(payload)
+      .getRawAndEntities();
+
+    //return await this.walletRepository.find({
+    // where: payload,
+    // relations: ['assets', 'assets.coin', 'assets.transactions'],
+    //});
   }
 
   async getConversion(payload: any): Promise<any> {
     let brlCotation = 1;
-    let conversion = await axios
+    let quoteTo = await axios
       .get(
-        `https://economia.awesomeapi.com.br/json/last/${
-          payload.currentCoin + '-' + payload.quoteTo
-        },${payload.quoteTo + '-BRL'}`,
+        `https://economia.awesomeapi.com.br/json/last/${payload.quoteTo}-USD,BRL-USD`,
       )
       .then((response) => response.data)
       .catch((error) => {
-        console.log(error.response.data);
+        throw new HttpException('Invalid coin', HttpStatus.BAD_REQUEST);
       });
+    let currentCoin = await axios
+      .get(
+        `https://economia.awesomeapi.com.br/json/last/${payload.currentCoin}-USD`,
+      )
+      .then((response) => response.data)
+      .catch((error) => {
+        throw new HttpException('Invalid coin', HttpStatus.BAD_REQUEST);
+      });
+    brlCotation =
+      quoteTo[payload.quoteTo + 'USD'].high / quoteTo['BRLUSD'].high;
+    quoteTo = quoteTo[payload.quoteTo + 'USD'];
+    currentCoin = currentCoin[payload.currentCoin + 'USD'];
 
-    if (!conversion && payload.quoteTo === payload.currentCoin) {
-      conversion = await axios
-        .get(
-          `https://economia.awesomeapi.com.br/json/last/${
-            payload.quoteTo + '-BRL'
-          }`,
-        )
-        .then((response) => response.data)
-        .catch((error) => {
-          console.log(error.response.data);
-        });
-
-      if (
-        !conversion &&
-        payload.quoteTo === 'BRL' &&
-        payload.currentCoin === 'BRL'
-      ) {
-        throw new HttpException('invalid coin', HttpStatus.BAD_REQUEST);
-      } else {
-        if (payload.quoteTo === 'BRL' && payload.currentCoin === 'BRL') {
-          brlCotation = 1;
-          conversion = {
-            codein: 'BRL',
-            high: 1,
-            name: 'cccc/Real Brasileiro',
-          };
-        } else {
-          brlCotation = conversion[payload.quoteTo + 'BRL'].high;
-          conversion = {
-            codein: conversion[payload.quoteTo + 'BRL'].code,
-            high: 1,
-            name: conversion[payload.quoteTo + 'BRL'].name,
-          };
-        }
-      }
-    } else {
-      if (!conversion) {
-        conversion = await axios
-          .get(
-            `https://economia.awesomeapi.com.br/json/last/${
-              payload.quoteTo + '-' + payload.currentCoin
-            },${payload.quoteTo + '-BRL'}`,
-          )
-          .then((response) => response.data)
-          .catch((error) => {
-            console.log(error.response.data);
-          });
-        brlCotation = conversion[payload.quoteTo + 'BRL'].high;
-        conversion = conversion[payload.quoteTo + payload.currentCoin];
-        conversion.high = 1 / conversion.high;
-        return { conversion, brlCotation };
-      }
-      brlCotation = conversion[payload.quoteTo + 'BRL'].high;
-      conversion = conversion[payload.currentCoin + payload.quoteTo];
-    }
+    const conversion = {
+      high: currentCoin.high / quoteTo.high,
+      quoteToName: quoteTo.name.split('/')[0],
+      quoteToCode: quoteTo.code,
+      currentCoinName: currentCoin.name.split('/')[0],
+    };
 
     return { conversion, brlCotation };
   }
 
-  async withdrawOrDeposit(id: string, payload: OperationDto): Promise<any> {
-    const wallet = await this.walletRepository.findOne(id);
-    const { conversion, brlCotation } = await this.getConversion(payload);
+  async withdrawOrDeposit(id: string, payload: OperationDto[]): Promise<any> {
+    const results = await Promise.all(
+      payload.map(async (payload) => {
+        const wallet = await this.walletRepository.findOne(id);
+        const { conversion, brlCotation } = await this.getConversion(payload);
 
-    let coin = await this.coinRepository.findOne({ code: payload.quoteTo });
-    if (!coin) {
-      coin = this.coinRepository.create({
-        code: conversion.codein,
-        fullname: conversion.name.split('/')[1],
-      });
-      await this.coinRepository.save(coin);
-    }
+        let coin = await this.coinRepository.findOne({ code: payload.quoteTo });
+        if (!coin) {
+          coin = this.coinRepository.create({
+            code: conversion.quoteToCode,
+            fullname: conversion.quoteToName,
+          });
+          await this.coinRepository.save(coin);
+        }
 
-    let asset = await this.assetRepository.findOne({
-      coin: coin,
-      wallet: wallet,
-    });
-    if (!asset) {
-      asset = await this.assetRepository.create({
-        wallet,
-        coin: coin,
-        ammount: 0,
-      });
-    }
+        let asset = await this.assetRepository.findOne({
+          coin: coin,
+          wallet: wallet,
+        });
+        if (!asset) {
+          asset = await this.assetRepository.create({
+            wallet,
+            coin: coin,
+            ammount: 0,
+          });
+        }
 
-    asset.ammount = asset.ammount + conversion.high * payload.value;
-    if (asset.ammount < 0)
-      throw new HttpException('inssuficient founds', HttpStatus.BAD_REQUEST);
-    await this.assetRepository.save(asset);
+        asset.ammount = asset.ammount + conversion.high * payload.value;
+        if (asset.ammount < 0)
+          throw new HttpException(
+            'inssuficient founds',
+            HttpStatus.BAD_REQUEST,
+          );
+        await this.assetRepository.save(asset);
 
-    const transaction = await this.transactionRepository.create({
-      wallet,
-      asset,
-      currentCotation: brlCotation + 0.0,
-      value: conversion.high * payload.value,
-    });
+        const transaction = await this.transactionRepository.create({
+          wallet,
+          asset,
+          currentCotation: brlCotation + 0.0,
+          value: conversion.high * payload.value,
+        });
 
-    await this.transactionRepository.save(transaction);
+        await this.transactionRepository.save(transaction);
+        return transaction;
+      }),
+    );
 
-    return conversion;
+    return results;
   }
   async transference(id: string, payload: OperationDto): Promise<any> {
     const wallet = await this.walletRepository.findOne(id);

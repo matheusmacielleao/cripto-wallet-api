@@ -27,12 +27,12 @@ export default class WalletsController {
   @Get()
   async getAll(@Query() payload: any) {
     const wallets = await this.walletService.getAll(payload);
-    return paginateSerialize(wallets);
+    return wallets;
   }
   @Put(':adress')
   async withdrawOrDeposit(
     @Param('adress') adress: string,
-    @Body() operation: OperationDto,
+    @Body() operation: OperationDto[],
   ) {
     return await this.walletService.withdrawOrDeposit(adress, operation);
   }
