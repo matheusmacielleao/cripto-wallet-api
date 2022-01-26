@@ -7,23 +7,20 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
+  TableInheritance,
 } from 'typeorm';
 import Asset from './asset.entity';
 import Coin from './coin.entity';
 import Wallet from './wallet.entity';
 
 @Entity('transaction')
+@TableInheritance({ column: { type: 'varchar', name: 'type' } })
 export default class Transaction {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column({
-    default: 0.0,
     type: 'decimal',
-    transformer: {
-      from: (value: string) => parseFloat(value),
-      to: (value: number) => value.toString(),
-    },
   })
   value: number;
 
