@@ -13,6 +13,7 @@ import Transaction from '../entities/transaction.entity';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
+        name: 'default',
         type: 'postgres',
         host: configService.get('POSTGRES_HOST'),
         port: configService.get('POSTGRES_PORT'),
