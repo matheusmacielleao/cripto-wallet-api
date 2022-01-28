@@ -1,5 +1,5 @@
 import * as moment from 'moment';
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Param } from '@nestjs/common';
 import CreateWalletDto from '../dto/wallet/createWalletDto';
 import { InjectRepository } from '@nestjs/typeorm';
 import Wallet from '../entities/wallet.entity';
@@ -50,20 +50,50 @@ export default class WalletsService {
     await this.walletRepository.save(newWallet);
     return newWallet;
   }
+  async getOne(id: string) {
+    const wallet = await this.walletRepository.findOne({
+      where: { address: id },
+      relations: ['assets', 'assets.coin', 'assets.transactions'],
+    });
+    if (!wallet)
+      throw new HttpException('Wallet not found', HttpStatus.NOT_FOUND);
+    return wallet;
+  }
 
   async getAll(payload: any): Promise<any> {
-    return this.walletRepository
+    const wallets = await this.walletRepository
       .createQueryBuilder('wallet')
       .leftJoinAndSelect('wallet.assets', 'asset')
       .leftJoinAndSelect('asset.coin', 'coin')
-      .leftJoinAndSelect('asset.transactions', 'transaction')
-      .where(payload)
-      .getMany();
+      .leftJoinAndSelect('asset.transactions', 'transaction');
 
-    //return await this.walletRepository.find({
-    // where: payload,
-    // relations: ['assets', 'assets.coin', 'assets.transactions'],
-    //});
+    Object.keys(payload).forEach((item) => {
+      const subquery = this.walletRepository
+        .createQueryBuilder('wallet')
+        .select('wallet.address')
+        .leftJoin('wallet.assets', 'asset')
+        .leftJoin('asset.coin', 'coin')
+        .leftJoin('asset.transactions', 'transaction');
+      subquery.andWhere(`${item} = :${item}`);
+      subquery.setParameter(`${item}`, payload[item]);
+      wallets.setParameter(`${item}`, payload[item]);
+
+      wallets.andWhere('wallet.address in (' + subquery.getQuery() + ')');
+      wallets.setParameters(subquery.getParameters());
+    });
+    return wallets.getMany();
+  }
+
+  async delete(@Param('address') address: string): Promise<void> {
+    const deleteResponse = await this.walletRepository.delete(address);
+    if (!deleteResponse.affected) {
+      throw new HttpException('Wallet not found', HttpStatus.NOT_FOUND);
+    }
+  }
+
+  async getTransactions(id: any): Promise<any> {
+    const wallet = await this.getOne(id);
+    return wallet.assets;
   }
 
   async getConversion(payload: any): Promise<any> {
